@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+sqlmodel
+asyncpg
+alembic
+pydantic-settings
+pytest
+pytest-asyncio
