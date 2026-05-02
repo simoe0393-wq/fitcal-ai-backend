@@ -3,6 +3,11 @@ from main import app
 
 client = TestClient(app)
 
+def test_unauthorized_access():
+    response = client.get("/api/ai-coach")
+    assert response.status_code == 401
+
+
 def test_analyze_image_endpoint():
     response = client.post("/api/meal/analyze-image", headers={"Authorization": "Bearer mock"})
     # Expect 422 because we didn't send a file, but the endpoint should exist and auth passes

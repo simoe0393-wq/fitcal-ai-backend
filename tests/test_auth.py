@@ -1,6 +1,7 @@
 import pytest
 from core.auth import verify_token
 from fastapi import HTTPException
+from fastapi.security import HTTPAuthorizationCredentials
 
 @pytest.mark.asyncio
 async def test_verify_token_missing():
@@ -10,11 +11,14 @@ async def test_verify_token_missing():
 
 @pytest.mark.asyncio
 async def test_verify_token_invalid():
+    creds = HTTPAuthorizationCredentials(scheme="Bearer", credentials="invalid")
     with pytest.raises(HTTPException) as exc_info:
-        await verify_token("Bearer invalid")
+        await verify_token(creds)
     assert exc_info.value.status_code == 401
 
 @pytest.mark.asyncio
 async def test_verify_token_valid():
-    clerk_id = await verify_token("Bearer valid_token")
+    creds = HTTPAuthorizationCredentials(scheme="Bearer", credentials="valid_token")
+    clerk_id = await verify_token(creds)
     assert clerk_id == "mock_clerk_id"
+
