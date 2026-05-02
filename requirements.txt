@@ -10,3 +10,4 @@ Pillow
 httpx
 python-multipart
 aioboto3
+mistralai
