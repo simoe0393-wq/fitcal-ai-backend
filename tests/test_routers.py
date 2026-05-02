@@ -21,9 +21,26 @@ def test_get_barcode_endpoint():
 def test_coach_endpoints():
     response = client.get("/api/ai-coach", headers={"Authorization": "Bearer mock"})
     assert response.status_code == 200
-    
-    response2 = client.post("/api/ai-coach/chat?message=hello", headers={"Authorization": "Bearer mock"})
+
+    payload = {
+        "message": "hello",
+        "calories_goal": 2200,
+        "calories_consumed": 1800,
+        "protein": 80,
+        "protein_target": 150,
+        "carbs": 200,
+        "carbs_target": 180,
+        "fat": 60,
+        "fat_target": 70,
+        "goal": "lose",
+    }
+    response2 = client.post(
+        "/api/ai-coach/chat",
+        json=payload,
+        headers={"Authorization": "Bearer mock"},
+    )
     assert response2.status_code == 200
+    assert "response" in response2.json()
 
 def test_progress_endpoints():
     response = client.post("/api/weight-progress?weight=80.5", headers={"Authorization": "Bearer mock"})
