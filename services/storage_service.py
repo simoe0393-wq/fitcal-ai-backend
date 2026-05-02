@@ -9,9 +9,48 @@ async def compress_image(image_bytes: bytes) -> bytes:
     image.save(output, format="JPEG", quality=70, optimize=True)
     return output.getvalue()
 
+import aioboto3
+from core.config import settings
+
 async def upload_to_s3(filename: str, image_bytes: bytes) -> str:
-    # MOCK implementation until AWS keys are provided
-    return f"https://mock-cdn.com/{filename}"
+    if settings.S3_ACCESS_KEY_ID == "mock" or not settings.S3_ACCESS_KEY_ID:
+        return f"https://mock-cdn.com/{filename}"
+        
+    session = aioboto3.Session()
+    async with session.client(
+        's3',
+        endpoint_url=settings.S3_ENDPOINT_URL,
+        aws_access_key_id=settings.S3_ACCESS_KEY_ID,
+        aws_secret_access_key=settings.S3_SECRET_ACCESS_KEY,
+        region_name=settings.S3_REGION
+    ) as s3:
+        await s3.put_object(
+            Bucket=settings.S3_BUCKET_NAME,
+            Key=filename,
+            Body=image_bytes,
+            ContentType="image/jpeg"
+        )
+        url = await s3.generate_presigned_url(
+            'get_object',
+            Params={'Bucket': settings.S3_BUCKET_NAME, 'Key': filename},
+            ExpiresIn=604800  # 7 days
+        )
+        return url
     
 async def delete_from_s3(filename: str) -> bool:
-    return True
+    if settings.S3_ACCESS_KEY_ID == "mock" or not settings.S3_ACCESS_KEY_ID:
+        return True
+        
+    session = aioboto3.Session()
+    async with session.client(
+        's3',
+        endpoint_url=settings.S3_ENDPOINT_URL,
+        aws_access_key_id=settings.S3_ACCESS_KEY_ID,
+        aws_secret_access_key=settings.S3_SECRET_ACCESS_KEY,
+        region_name=settings.S3_REGION
+    ) as s3:
+        await s3.delete_object(
+            Bucket=settings.S3_BUCKET_NAME,
+            Key=filename
+        )
+        return True
