@@ -15,7 +15,9 @@ app.add_middleware(
 async def health_check():
     return {"status": "ok"}
 
-from api.routers import meal, nutrition
+from api.routers import meal, nutrition, coach, progress
 app.include_router(meal.router)
 app.include_router(nutrition.router)
+app.include_router(coach.router)
+app.include_router(progress.router)
 

@@ -12,3 +12,18 @@ def test_get_barcode_endpoint():
     response = client.get("/api/food/barcode/12345", headers={"Authorization": "Bearer mock"})
     assert response.status_code == 200
     assert response.json()["barcode"] == "12345"
+
+def test_coach_endpoints():
+    response = client.get("/api/ai-coach", headers={"Authorization": "Bearer mock"})
+    assert response.status_code == 200
+    
+    response2 = client.post("/api/ai-coach/chat?message=hello", headers={"Authorization": "Bearer mock"})
+    assert response2.status_code == 200
+
+def test_progress_endpoints():
+    response = client.post("/api/weight-progress?weight=80.5", headers={"Authorization": "Bearer mock"})
+    assert response.status_code == 200
+    
+    response2 = client.get("/api/water", headers={"Authorization": "Bearer mock"})
+    assert response2.status_code == 200
+

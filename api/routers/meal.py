@@ -18,3 +18,8 @@ async def analyze_image_endpoint(image: UploadFile = File(...)):
     analysis = await analyze_meal_image("mock_base64_string")
     
     return {"analysis": analysis, "image_url": url}
+
+@router.post("/daily-log", dependencies=[Depends(verify_token)])
+async def add_meal_to_log(food_name: str, calories: float):
+    return {"status": "success", "meal": {"food_name": food_name, "calories": calories}}
+
