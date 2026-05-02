@@ -14,3 +14,8 @@ app.add_middleware(
 @app.get("/health")
 async def health_check():
     return {"status": "ok"}
+
+from api.routers import meal, nutrition
+app.include_router(meal.router)
+app.include_router(nutrition.router)
+
