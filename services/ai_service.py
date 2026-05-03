@@ -1,15 +1,17 @@
 import json
-from typing import Optional
-from mistralai.client import Mistral
+import google.generativeai as genai
 from core.config import settings
-from schemas.ai import MealAnalysisResult
+from schemas.ai import MealAnalysisResult, CoachChatRequest
 from pydantic import ValidationError
+
+# Configure Gemini
+genai.configure(api_key=settings.GEMINI_API_KEY)
 
 async def analyze_meal_image(image_base64: str) -> MealAnalysisResult:
     """
-    Analyzes a base64 encoded image using Mistral Vision model.
+    Analyzes a base64 encoded image using Gemini Vision model.
     """
-    if settings.MISTRAL_API_KEY == "mock" or not settings.MISTRAL_API_KEY:
+    if settings.GEMINI_API_KEY == "mock" or not settings.GEMINI_API_KEY:
         return MealAnalysisResult(
             food_name="Mock Salad",
             calories=350.0,
@@ -19,36 +21,33 @@ async def analyze_meal_image(image_base64: str) -> MealAnalysisResult:
             confidence_score=0.95
         )
 
-    client = Mistral(api_key=settings.MISTRAL_API_KEY)
+    # Use gemini-1.5-flash for vision
+    model = genai.GenerativeModel('gemini-flash-latest')
     
     prompt = (
         "Analyze the meal in this image. Return a JSON object with EXACTLY these fields: "
         "food_name (string), calories (number), carbs (number), protein (number), fat (number), "
         "and confidence_score (number between 0 and 1). "
-        "Return ONLY the JSON object. Do not include nested fields or meal_components."
+        "Return ONLY the JSON object. Do not include markdown formatting or extra text."
     )
     
     try:
-        response = await client.chat.complete_async(
-            model="pixtral-12b-2409",
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": prompt},
-                        {
-                            "type": "image_url",
-                            "image_url": f"data:image/jpeg;base64,{image_base64}",
-                        },
-                    ],
-                }
-            ],
-            response_format={"type": "json_object"}
+        # Prepare image data
+        image_data = {
+            'mime_type': 'image/jpeg',
+            'data': image_base64
+        }
+        
+        response = model.generate_content(
+            [prompt, image_data],
+            generation_config=genai.types.GenerationConfig(
+                response_mime_type="application/json"
+            )
         )
         
-        content = response.choices[0].message.content
+        content = response.text
         if not content:
-            raise ValueError("Empty response from AI")
+            raise ValueError("Empty response from Gemini")
             
         data = json.loads(content)
         
@@ -64,27 +63,89 @@ async def analyze_meal_image(image_base64: str) -> MealAnalysisResult:
             
         return MealAnalysisResult(**data)
         
-    except (ValidationError, json.JSONDecodeError, ValueError, Exception) as e:
-        # We can log the error here if needed
+    except Exception as e:
+        print(f"Gemini analysis error: {str(e)}")
         raise Exception(f"AI analysis failed: {str(e)}")
 
 async def get_coach_advice(locale: str, daily_goal: int, current_intake: int) -> str:
-    if settings.MISTRAL_API_KEY == "mock" or not settings.MISTRAL_API_KEY:
+    """Legacy endpoint for simple advice."""
+    if settings.GEMINI_API_KEY == "mock" or not settings.GEMINI_API_KEY:
         return f"Mock advice for {locale}: Keep going!"
 
-    client = Mistral(api_key=settings.MISTRAL_API_KEY)
+    model = genai.GenerativeModel('gemini-flash-latest')
     
     prompt = (
         f"You are a helpful weight loss coach. The user is in {locale}. "
         f"Their daily goal is {daily_goal} kcal and they have consumed {current_intake} kcal so far. "
-        "Give them a short, encouraging piece of advice in their language (e.g. if locale is ar, use Arabic)."
+        "Give them a short, encouraging piece of advice in their language."
     )
     
     try:
-        response = await client.chat.complete_async(
-            model="mistral-small-latest",
-            messages=[{"role": "user", "content": prompt}]
-        )
-        return response.choices[0].message.content
+        response = model.generate_content(prompt)
+        return response.text
     except Exception as e:
-        return f"Encouraging words from your coach: You can do it! (Error: {str(e)})"
+        return "Keep going, you're making progress!"
+
+async def get_personalized_coach_response(request: CoachChatRequest) -> str:
+    """
+    Generates a personalized AI coach response based on real user nutrition data using Google Gemini.
+    """
+    # Logging request data
+    print("AI REQUEST DATA:", request.model_dump())
+
+    if settings.GEMINI_API_KEY == "mock" or not settings.GEMINI_API_KEY:
+        return "Keep going, you're making progress!"
+
+    # Analyze macro status
+    flags = []
+    if request.protein is not None and request.protein_target is not None:
+        if request.protein < request.protein_target:
+            flags.append("LOW PROTEIN")
+    if request.carbs is not None and request.carbs_target is not None:
+        if request.carbs > request.carbs_target:
+            flags.append("HIGH CARBS")
+    if request.calories_consumed is not None and request.calories_goal is not None:
+        if request.calories_consumed > request.calories_goal:
+            flags.append("OVER CALORIES")
+
+    # Build prompt
+    nutrition_info = f"""
+User data:
+- Calories: {request.calories_consumed or 0}/{request.calories_goal or 0}
+- Protein: {request.protein or 0}/{request.protein_target or 0}g ({ 'LOW' if 'LOW PROTEIN' in flags else 'OK' })
+- Carbs: {request.carbs or 0}/{request.carbs_target or 0}g ({ 'HIGH' if 'HIGH CARBS' in flags else 'OK' })
+- Fat: {request.fat or 0}/{request.fat_target or 0}g
+Goal: {request.goal or 'lose weight'}
+"""
+    
+    system_instruction = "You are a strict professional fitness coach."
+    
+    prompt = f"""
+{nutrition_info}
+
+User message: {request.message}
+
+Rules:
+- MUST mention at least one macro issue (protein/carbs/fat) if any exist (Active flags: {', '.join(flags) if flags else 'None'})
+- MUST give specific actionable advice
+- DO NOT use generic phrases
+- MAX 2 sentences
+- Be direct and helpful
+
+Respond:"""
+
+    try:
+        model = genai.GenerativeModel("gemini-flash-latest")
+        response = model.generate_content(f"{system_instruction}\n\n{prompt}")
+        
+        text = response.text
+        if not text:
+            text = "Keep going, you're making progress!"
+        
+        # Logging response
+        print("AI RESPONSE:", text)
+        return text.strip()
+        
+    except Exception as e:
+        print(f"Gemini coach error: {str(e)}")
+        return "Keep going, you're making progress!"

@@ -22,7 +22,11 @@ def test_coach_endpoints():
     response = client.get("/api/ai-coach", headers={"Authorization": "Bearer mock"})
     assert response.status_code == 200
     
-    response2 = client.post("/api/ai-coach/chat?message=hello", headers={"Authorization": "Bearer mock"})
+    response2 = client.post(
+        "/api/ai-coach/chat",
+        json={"message": "hello"},
+        headers={"Authorization": "Bearer mock"}
+    )
     assert response2.status_code == 200
 
 def test_progress_endpoints():

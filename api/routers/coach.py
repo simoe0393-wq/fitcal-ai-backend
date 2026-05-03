@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends
 from core.auth import verify_token
-from services.ai_service import get_coach_advice
+from services.ai_service import get_coach_advice, get_personalized_coach_response
+from schemas.ai import CoachChatRequest
 
 router = APIRouter(prefix="/api/ai-coach", tags=["AI Coach"])
 
@@ -10,5 +11,6 @@ async def get_coach():
     return {"advice": advice}
 
 @router.post("/chat", dependencies=[Depends(verify_token)])
-async def chat_with_coach(message: str):
-    return {"response": f"Mock AI response to: {message}"}
+async def chat_with_coach(request: CoachChatRequest):
+    response = await get_personalized_coach_response(request)
+    return {"response": response}
