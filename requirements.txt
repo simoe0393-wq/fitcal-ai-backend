@@ -1,13 +1,4 @@
 fastapi
 uvicorn
-sqlmodel
-asyncpg
-alembic
-pydantic-settings
-pytest
-pytest-asyncio
-Pillow
 httpx
-python-multipart
-aioboto3
-google-generativeai
+google-generativeai
